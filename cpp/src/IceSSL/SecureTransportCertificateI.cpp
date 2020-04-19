@@ -444,7 +444,7 @@ SecureTransportCertificateI::getAuthorityKeyIdentifier() const
     if(property)
     {
         CFTypeRef type = 0;
-        CFTypeRef value;
+        CFTypeRef value = 0;
         if(CFDictionaryGetValueIfPresent(property.get(), kSecPropertyKeyType, &type))
         {
             if(CFEqual(type, kSecPropertyTypeSection))
@@ -483,7 +483,7 @@ SecureTransportCertificateI::getSubjectKeyIdentifier() const
     if(property)
     {
         CFTypeRef type = 0;
-        CFTypeRef value;
+        CFTypeRef value = 0;
         if(CFDictionaryGetValueIfPresent(property.get(), kSecPropertyKeyType, &type))
         {
             if(CFEqual(type, kSecPropertyTypeSection))
@@ -584,7 +584,7 @@ SecureTransportCertificateI::encode() const
     ostringstream os;
     os << "-----BEGIN CERTIFICATE-----\n";
     os << IceInternal::Base64::encode(data);
-    os << "-----END CERTIFICATE-----\n";
+    os << "\n-----END CERTIFICATE-----\n";
     return os.str();
 #else // macOS
     UniqueRef<CFDataRef> exported;
@@ -816,18 +816,18 @@ IceSSL::SecureTransport::CertificatePtr
 IceSSL::SecureTransport::Certificate::decode(const std::string& encoding)
 {
 #ifdef ICE_USE_SECURE_TRANSPORT_IOS
-    string::size_type size, startpos, endpos = 0;
-    startpos = encoding.find("-----BEGIN CERTIFICATE-----", endpos);
+    string::size_type size = 0;
+    string::size_type startpos = 0;
+    startpos = encoding.find("-----BEGIN CERTIFICATE-----", 0);
     if(startpos != string::npos)
     {
         startpos += sizeof("-----BEGIN CERTIFICATE-----");
-        endpos = encoding.find("-----END CERTIFICATE-----", startpos);
+        string::size_type endpos = encoding.find("-----END CERTIFICATE-----", startpos);
         size = endpos - startpos;
     }
     else
     {
         startpos = 0;
-        endpos = string::npos;
         size = encoding.size();
     }
 

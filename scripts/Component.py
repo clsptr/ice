@@ -8,8 +8,8 @@ from Util import *
 
 class Ice(Component):
 
-    # All option values for Ice/IceBox tests.
-    coreOptions = {
+    # Options for all transports (ran only with Ice client/server tests defined for cross testing)
+    transportOptions = {
         "protocol" : ["tcp", "ssl", "wss", "ws"],
         "compress" : [False, True],
         "ipv6" : [False, True],
@@ -17,17 +17,23 @@ class Ice(Component):
         "mx" : [False, True],
     }
 
-    # All option values for IceGrid/IceStorm/Glacier2/IceDiscovery tests.
-    serviceOptions = {
-        "protocol" : ["tcp", "wss"],
+    # Options for Ice tests, run tests with ssl and ws/ipv6/serial/mx/compress
+    coreOptions = {
+        "protocol" : ["ssl", "ws"],
         "compress" : [False, True],
         "ipv6" : [False, True],
         "serialize" : [False, True],
         "mx" : [False, True],
     }
 
-    def __init__(self):
-        self.nugetVersion = None
+    # Options for Ice services, run tests with ssl + mx
+    serviceOptions = {
+        "protocol" : ["ssl"],
+        "compress" : [False],
+        "ipv6" : [False],
+        "serialize" : [False],
+        "mx" : [True],
+    }
 
     def useBinDist(self, mapping, current):
         return Component._useBinDist(self, mapping, current, "ICE_BIN_DIST")
@@ -106,6 +112,8 @@ class Ice(Component):
                      "Ice/properties"])
         elif isinstance(mapping, JavaScriptMapping):
             return ([], ["typescript/.*", "es5/*"])
+        elif isinstance(mapping, SwiftMapping) and config.buildPlatform in ["iphonesimulator", "iphoneos"]:
+            return (["Ice/.*", "IceSSL/configuration", "Slice/*"], ["Ice/properties", "Ice/udp"])
         return ([], [])
 
     def canRun(self, testId, mapping, current):
@@ -126,6 +134,16 @@ class Ice(Component):
             if self.useBinDist(mapping, current):
                 if parent in ["Glacier2", "IceBridge"] and current.config.buildConfig.find("Debug") >= 0:
                     return False
+        elif isinstance(platform, AIX):
+            if current.config.buildPlatform == "ppc" and self.useBinDist(mapping, current):
+                #
+                # Don't test Glacier2, IceBridge and IceGrid services on ppc with bindist. We only ship
+                # ppc64 binaries for these services
+                #
+                if parent in ["Glacier2", "IceBridge", "IceGrid"]:
+                    return False
+                if testId == "IceStorm/repgrid":
+                    return False
 
         # No C++11 tests for IceStorm, IceGrid, etc
         if isinstance(mapping, CppMapping) and current.config.cpp11:
@@ -143,14 +161,9 @@ class Ice(Component):
             if current.config.ipv6 and testId in ["Ice/udp"]:
                 return False
 
-        # IceSSL test doesn't work on macOS/.NET Core
-        if isinstance(mapping, CSharpMapping) and isinstance(platform, Darwin) and parent in ["IceSSL"]:
-            return False
-
         return True
 
     def isMainThreadOnly(self, testId):
-        #return testId.startswith("IceStorm") # TODO: WORKAROUND for ICE-8175
         return False # By default, tests support being run concurrently
 
     def getDefaultProcesses(self, mapping, processType, testId):
@@ -163,10 +176,24 @@ class Ice(Component):
                 return [IceGridServer()]
 
     def getOptions(self, testcase, current):
+
         parent = re.match(r'^([\w]*).*', testcase.getTestSuite().getId()).group(1)
-        if isinstance(testcase, ClientServerTestCase) and parent in ["Ice", "IceBox"]:
+        if parent not in ["Ice", "IceBox", "IceGrid", "Glacier2", "IceStorm", "IceDiscovery", "IceBridge"]:
+            return None
+
+        if not isinstance(testcase, ClientServerTestCase):
+            return None
+
+        # Define here Ice tests which are slow to execute and for which it's not useful to test different options
+        if testcase.getTestSuite().getId() in ["Ice/binding", "Ice/faultTolerance", "Ice/location"]:
+            return self.serviceOptions
+
+        # We only run the client/server tests defined for cross testing with all transports
+        if testcase.__class__.__name__ == 'ClientServerTestCase' and self.isCross(testcase.getTestSuite().getId()):
+            return self.transportOptions
+        elif parent in ["Ice", "IceBox"]:
             return self.coreOptions
-        elif parent in ["IceGrid", "Glacier2", "IceStorm", "IceDiscovery", "IceBridge"]:
+        else:
             return self.serviceOptions
 
     def getRunOrder(self):
@@ -175,7 +202,6 @@ class Ice(Component):
     def isCross(self, testId):
         return testId in [
             "Ice/ami",
-            "Ice/info",
             "Ice/exceptions",
             "Ice/enums",
             "Ice/facets",
@@ -184,7 +210,6 @@ class Ice(Component):
             "Ice/objects",
             "Ice/operations",
             "Ice/proxy",
-            "Ice/servantLocator",
             "Ice/slicing/exceptions",
             "Ice/slicing/objects",
             "Ice/optional",
@@ -225,27 +250,26 @@ for m in filter(lambda x: os.path.isdir(os.path.join(toplevel, x)), os.listdir(t
     elif m == "python" or re.match("python-.*", m):
         Mapping.add(m, PythonMapping(), component)
     elif m == "ruby" or re.match("ruby-.*", m):
-        Mapping.add(m, RubyMapping(), component)
+        Mapping.add(m, RubyMapping(), component, enable=not isinstance(platform, Windows))
     elif m == "php" or re.match("php-.*", m):
         Mapping.add(m, PhpMapping(), component)
     elif m == "js" or re.match("js-.*", m):
-        Mapping.add(m, JavaScriptMapping(), component)
-        Mapping.add("typescript", TypeScriptMapping(), component, "js")
+        Mapping.add(m, JavaScriptMapping(), component, enable=platform.hasNodeJS())
+        Mapping.add("typescript", TypeScriptMapping(), component, "js", enable=platform.hasNodeJS())
     elif m == "objective-c" or re.match("objective-c-*", m):
-        Mapping.add(m, ObjCMapping(), component)
+        Mapping.add(m, ObjCMapping(), component, enable=isinstance(platform, Darwin))
+    elif m == "swift" or re.match("swift-.*", m):
+        # Swift mapping requires Swift 5.0 or greater
+        Mapping.add("swift", SwiftMapping(), component, enable=platform.hasSwift((5, 0)))
     elif m == "csharp" or re.match("charp-.*", m):
-        Mapping.add("csharp", CSharpMapping(), component)
+        Mapping.add("csharp", CSharpMapping(), component, enable=isinstance(platform, Windows) or platform.hasDotNet())
 
 if isinstance(platform, Windows):
     # Windows doesn't support all the mappings, we take them out here.
-    Mapping.remove("ruby")
-    if platform.getCompiler() != "v140":
-        Mapping.remove("python")
     if platform.getCompiler() not in ["v140", "v141"]:
-        Mapping.remove("php")
-elif not platform.hasDotNet():
-    # Remove C# if Dot Net Core isn't supported
-    Mapping.remove("csharp")
+        Mapping.disable("python")
+    if platform.getCompiler() not in ["v140", "v141"]:
+        Mapping.disable("php")
 
 #
 # Check if Matlab is installed and eventually add the Matlab mapping

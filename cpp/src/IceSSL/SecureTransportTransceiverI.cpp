@@ -120,7 +120,8 @@ checkTrustResult(SecTrustRef trust,
         //
         if(engine->getCheckCertName() && !host.empty())
         {
-            UniqueRef<SecPolicyRef> policy(SecPolicyCreateSSL(false, toCFString(host)));
+            UniqueRef<CFStringRef> hostref(toCFString(host));
+            UniqueRef<SecPolicyRef> policy(SecPolicyCreateSSL(true, hostref.get()));
             UniqueRef<CFArrayRef> policies;
             if((err = SecTrustCopyPolicies(trust, &policies.get())))
             {
@@ -240,6 +241,18 @@ IceSSL::SecureTransport::TransceiverI::initialize(IceInternal::Buffer& readBuffe
         {
             throw SecurityException(__FILE__, __LINE__, "IceSSL: setting SSL connection failed\n" +
                                     sslErrorToString(err));
+        }
+
+        //
+        // Enable SNI
+        //
+        if(!_incoming && _engine->getServerNameIndication() && !_host.empty() && !IceInternal::isIpAddress(_host))
+        {
+            if((err = SSLSetPeerDomainName(_ssl.get(), _host.data(), _host.length())))
+            {
+                throw SecurityException(__FILE__, __LINE__, "IceSSL: setting SNI host failed `" + _host + "'\n" +
+                                        sslErrorToString(err));
+            }
         }
     }
 

@@ -258,16 +258,32 @@ classdef AllTests
             m.v(2).key = StructKey(2, '2');
             m.v(2).value = L('two');
 
+            assert(length(m.v) == 2);
+
             [m1, m2] = initial.opM(m);
 
-            assert(length(m1.v) == 2);
-            assert(length(m2.v) == 2);
+            assert(length(m1.v) == length(m.v));
+            assert(length(m2.v) == length(m.v));
 
-            assert(strcmp(m1.v(1).value.data, 'one'));
-            assert(strcmp(m1.v(2).value.data, 'two'));
+            for i = 1:2
+                if isequal(m1.v(i).key, m.v(1).key)
+                    assert(strcmp(m1.v(i).value.data, m.v(1).value.data));
+                elseif isequal(m1.v(i).key, m.v(2).key)
+                    assert(strcmp(m1.v(i).value.data, m.v(2).value.data));
+                else
+                    assert(false);
+                end
+            end
 
-            assert(strcmp(m2.v(1).value.data, 'one'));
-            assert(strcmp(m2.v(2).value.data, 'two'));
+            for i = 1:2
+                if isequal(m2.v(i).key, m.v(1).key)
+                    assert(strcmp(m2.v(i).value.data, m.v(1).value.data));
+                elseif isequal(m2.v(i).key, m.v(2).key)
+                    assert(strcmp(m2.v(i).value.data, m.v(2).value.data));
+                else
+                    assert(false);
+                end
+            end
 
             fprintf('ok\n');
 
@@ -277,8 +293,10 @@ classdef AllTests
             assert(strcmp(f11.name, 'F11'));
             assert(strcmp(f12.name, 'F12'));
 
-            [f21, f22] = initial.opF2(F2Prx.uncheckedCast(communicator.stringToProxy('F21')));
+            ref = ['F21:', helper.getTestEndpoint()];
+            [f21, f22] = initial.opF2(F2Prx.uncheckedCast(communicator.stringToProxy(ref)));
             assert(strcmp(f21.ice_getIdentity().name, 'F21'));
+            f21.op();
             assert(strcmp(f22.ice_getIdentity().name, 'F22'));
 
             if initial.hasF3()

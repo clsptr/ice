@@ -515,7 +515,7 @@ namespace Ice
         /// <summary>
         /// Returns whether this proxy communicates only via secure endpoints.
         /// </summary>
-        /// <returns>True if this proxy communicates only vi secure endpoints; false, otherwise.</returns>
+        /// <returns>True if this proxy communicates only via secure endpoints; false, otherwise.</returns>
         bool ice_isSecure();
 
         /// <summary>
@@ -1170,7 +1170,7 @@ namespace Ice
         {
             iceCheckTwowayOnly(_ice_ids_name);
             var completed = new OperationTaskCompletionCallback<string[]>(progress, cancel);
-            iceI_ice_ids(context, completed, false);
+            iceI_ice_ids(context, completed, synchronous);
             return completed.Task;
         }
 

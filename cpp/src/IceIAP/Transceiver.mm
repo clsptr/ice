@@ -2,6 +2,10 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
+#include <Ice/Config.h>
+
+#if TARGET_OS_IPHONE != 0
+
 #include "Transceiver.h"
 #include "EndpointI.h"
 
@@ -205,7 +209,9 @@ IceObjC::iAPTransceiver::closeStreams()
     [_writeStream setDelegate:nil];
     [_readStream setDelegate:nil];
 
+#if defined(__clang__) && !__has_feature(objc_arc)
     [_callback release];
+#endif
     _callback = 0;
 
     [_writeStream close];
@@ -383,7 +389,11 @@ IceObjC::iAPTransceiver::setBufferSize(int, int)
 IceObjC::iAPTransceiver::iAPTransceiver(const ProtocolInstancePtr& instance, EASession* session) :
     StreamNativeInfo(INVALID_SOCKET),
     _instance(instance),
+#if defined(__clang__) && !__has_feature(objc_arc)
     _session([session retain]),
+#else
+    _session(session),
+#endif
     _readStream([session inputStream]),
     _writeStream([session outputStream]),
     _readStreamRegistered(false),
@@ -399,7 +409,9 @@ IceObjC::iAPTransceiver::iAPTransceiver(const ProtocolInstancePtr& instance, EAS
 
 IceObjC::iAPTransceiver::~iAPTransceiver()
 {
+#if defined(__clang__) && !__has_feature(objc_arc)
     [_session release];
+#endif
 }
 
 void
@@ -448,3 +460,5 @@ IceObjC::iAPTransceiver::checkErrorStatus(NSStream* stream, const char* file, in
     ex.error = static_cast<int>([err code]);
     throw ex;
 }
+
+#endif

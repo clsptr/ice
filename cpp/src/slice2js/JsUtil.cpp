@@ -165,6 +165,22 @@ fixIds(const StringList& ids)
 }
 
 string
+Slice::JsGenerator::getDefinedIn(const ContainedPtr& p)
+{
+    static const string prefix = "js:defined-in:";
+    string definedIn;
+    if(findMetaData(prefix, p->getMetaData(), definedIn))
+    {
+        string base = p->definitionContext()->filename();
+        string::size_type pos = base.find_last_of("/\\");
+        assert(pos != string::npos);
+        base = base.erase(pos);
+        return fullPath(base + "/" + definedIn);
+    }
+    return "";
+}
+
+string
 Slice::JsGenerator::getModuleMetadata(const TypePtr& type)
 {
     static const char* builtinModuleTable[] =
@@ -190,7 +206,7 @@ Slice::JsGenerator::getModuleMetadata(const TypePtr& type)
     }
 
     ProxyPtr proxy = ProxyPtr::dynamicCast(type);
-    return getModuleMetadata(proxy ? ContainedPtr::dynamicCast(proxy->_class()->definition()) :
+    return getModuleMetadata(proxy ? ContainedPtr::dynamicCast(proxy->_class()) :
                                      ContainedPtr::dynamicCast(type));
 }
 
@@ -198,7 +214,7 @@ string
 Slice::JsGenerator::getModuleMetadata(const ContainedPtr& p)
 {
     //
-    // Check if the file contains the python:pkgdir global metadata.
+    // Check if the file contains the js:module global metadata.
     //
     DefinitionContextPtr dc = p->definitionContext();
     assert(dc);
@@ -267,7 +283,14 @@ Slice::JsGenerator::importPrefix(const TypePtr& type,
     else if(ProxyPtr::dynamicCast(type))
     {
         ProxyPtr proxy = ProxyPtr::dynamicCast(type);
-        return importPrefix(ContainedPtr::dynamicCast(proxy->_class()->definition()), toplevel, imports);
+        if(proxy->_class()->definition())
+        {
+            return importPrefix(ContainedPtr::dynamicCast(proxy->_class()->definition()), toplevel, imports);
+        }
+        else
+        {
+            return importPrefix(proxy->_class(), toplevel, imports, getDefinedIn(proxy->_class()));
+        }
     }
     else if(ContainedPtr::dynamicCast(type))
     {
@@ -289,6 +312,17 @@ Slice::JsGenerator::importPrefix(const TypePtr& type,
         {
             return "iceNS0.";
         }
+        else if(cl)
+        {
+            if(cl->definition())
+            {
+                return importPrefix(ContainedPtr::dynamicCast(cl->definition()), toplevel, imports);
+            }
+            else
+            {
+                return importPrefix(ContainedPtr::dynamicCast(cl), toplevel, imports, getDefinedIn(cl));
+            }
+        }
         else
         {
             return importPrefix(ContainedPtr::dynamicCast(type), toplevel, imports);
@@ -300,7 +334,8 @@ Slice::JsGenerator::importPrefix(const TypePtr& type,
 string
 Slice::JsGenerator::importPrefix(const ContainedPtr& contained,
                                  const ContainedPtr& toplevel,
-                                 const vector<pair<string, string> >& imports)
+                                 const vector<pair<string, string> >& imports,
+                                 const string& definedIn)
 {
     string m1 = getModuleMetadata(contained);
     string m2 = getModuleMetadata(toplevel);
@@ -309,7 +344,7 @@ Slice::JsGenerator::importPrefix(const ContainedPtr& contained,
 
     if(m1.empty())
     {
-        string p1 = contained->definitionContext()->filename();
+        string p1 = definedIn.empty() ? contained->definitionContext()->filename() : definedIn;
         string p2 = toplevel->definitionContext()->filename();
 
         p = relativePath(p1, p2);
@@ -471,9 +506,13 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
             {
                 prefix = importPrefix("Ice.Value", toplevel);
             }
+            else if(cl->definition())
+            {
+                prefix = importPrefix(ContainedPtr::dynamicCast(cl->definition()), toplevel, imports);
+            }
             else
             {
-                prefix = importPrefix(ContainedPtr::dynamicCast(cl), toplevel, imports);
+                prefix = importPrefix(ContainedPtr::dynamicCast(cl), toplevel, imports, getDefinedIn(cl));
             }
         }
         os << prefix;
@@ -505,7 +544,14 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
             string prefix;
             if(typescript)
             {
-                prefix = importPrefix(ContainedPtr::dynamicCast(def), toplevel, imports);
+                if(def)
+                {
+                    prefix = importPrefix(ContainedPtr::dynamicCast(def), toplevel, imports);
+                }
+                else
+                {
+                    prefix = importPrefix(proxy->_class(), toplevel, imports, getDefinedIn(proxy->_class()));
+                }
                 os << prefix;
             }
 

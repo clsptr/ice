@@ -9,7 +9,7 @@
 static int
 run(id<ICECommunicator> communicator)
 {
-    [[communicator getProperties] setProperty:@"TestAdapter.Endpoints" value:@"default -p 12010"];
+    [[communicator getProperties] setProperty:@"TestAdapter.Endpoints" value:getTestEndpoint(communicator, 0)];
     id<ICEObjectAdapter> adapter = [communicator createObjectAdapter:@"TestAdapter"];
     [adapter add:[TestProxyMyDerivedClassI myDerivedClass]
         identity:[ICEUtil stringToIdentity:@"test"]];
@@ -31,6 +31,7 @@ main(int argc, char* argv[])
 #ifdef ICE_STATIC_LIBS
     ICEregisterIceSSL(YES);
     ICEregisterIceWS(YES);
+    ICEregisterIceUDP(YES);
 #if TARGET_OS_IPHONE && !TARGET_IPHONE_SIMULATOR
     ICEregisterIceIAP(YES);
 #endif

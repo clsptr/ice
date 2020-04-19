@@ -224,7 +224,18 @@ namespace IceInternal
 
             if(sourceAddr_ != null)
             {
-                s += " --sourceAddress " + Network.endpointAddressToString(sourceAddr_);
+                string sourceAddr = Network.endpointAddressToString(sourceAddr_);
+                bool addQuote = sourceAddr.IndexOf(':') != -1;
+                s += " --sourceAddress ";
+                if(addQuote)
+                {
+                    s += "\"";
+                }
+                s += sourceAddr;
+                if(addQuote)
+                {
+                    s += "\"";
+                }
             }
 
             return s;
@@ -232,14 +243,17 @@ namespace IceInternal
 
         public override int GetHashCode()
         {
-            if(!_hashInitialized)
+            lock (this)
             {
-                _hashValue = 5381;
-                HashUtil.hashAdd(ref _hashValue, type());
-                hashInit(ref _hashValue);
-                _hashInitialized = true;
+                if(!_hashInitialized)
+                {
+                    _hashValue = 5381;
+                    HashUtil.hashAdd(ref _hashValue, type());
+                    hashInit(ref _hashValue);
+                    _hashInitialized = true;
+                }
+                return _hashValue;
             }
-            return _hashValue;
         }
 
         public override int CompareTo(EndpointI obj)

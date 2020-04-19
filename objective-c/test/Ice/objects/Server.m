@@ -38,13 +38,16 @@ run(id<ICECommunicator> communicator)
     [[communicator getValueFactoryManager] add:factory sliceId:@"::Test::J"];
     [[communicator getValueFactoryManager] add:factory sliceId:@"::Test::H"];
 
-    [[communicator getProperties] setProperty:@"TestAdapter.Endpoints" value:@"default -p 12010"];
+    [[communicator getProperties] setProperty:@"TestAdapter.Endpoints" value:getTestEndpoint(communicator, 0)];
     id<ICEObjectAdapter> adapter = [communicator createObjectAdapter:@"TestAdapter"];
     ICEObject* initial = [TestObjectsInitialI initial];
     [adapter add:initial identity:[ICEUtil stringToIdentity:@"initial"]];
 
     ICEObject* testObj = ICE_AUTORELEASE([[TestObjectsTestIntfI alloc] init]);
     [adapter add:testObj identity:[ICEUtil stringToIdentity:@"test"]];
+
+    ICEObject* f2Obj = ICE_AUTORELEASE([[TestObjectsF2I alloc] init]);
+    [adapter add:f2Obj identity:[ICEUtil stringToIdentity:@"F21"]];
 
     ICEObject* uoet = ICE_AUTORELEASE([[UnexpectedObjectExceptionTestI alloc] init]);
     [adapter add:uoet identity:[ICEUtil stringToIdentity:@"uoet"]];

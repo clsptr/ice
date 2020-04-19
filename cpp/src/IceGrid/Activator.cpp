@@ -82,7 +82,7 @@ reportChildError(int err, int fd, const char* cannot, const char* name, const Tr
     os << cannot << " `" << name << "'";
     if(err)
     {
-        os << ": " << IceUtilInternal::errorToString(err) << endl;
+        os << ": " << IceUtilInternal::errorToString(err);
     }
     const string msg = os.str();
     ssize_t sz = write(fd, msg.c_str(), msg.size());
@@ -155,6 +155,14 @@ signalToString(int signal)
         case SIGALRM:
         {
             return ICE_STRING(SIGALRM);
+        }
+        case SIGCONT:
+        {
+            return ICE_STRING(SIGCONT);
+        }
+        case SIGSTOP:
+        {
+            return ICE_STRING(SIGSTOP);
         }
 #endif
         case SIGKILL:
@@ -229,6 +237,14 @@ stringToSignal(const string& str)
     else if(str == ICE_STRING(SIGALRM))
     {
         return SIGALRM;
+    }
+    else if(str == ICE_STRING(SIGCONT))
+    {
+        return SIGCONT;
+    }
+    else if(str == ICE_STRING(SIGSTOP))
+    {
+        return SIGSTOP;
     }
     else
 #endif
@@ -585,7 +601,12 @@ Activator::activate(const string& name,
 
     if(!b)
     {
-        throw runtime_error(IceUtilInternal::lastErrorToString());
+        string message = IceUtilInternal::lastErrorToString();
+
+        Ice::Warning out(_traceLevels->logger);
+        out << "server activation failed for `" << name << "':\n" << message;
+
+        throw runtime_error(message);
     }
 
     //
@@ -603,7 +624,14 @@ Activator::activate(const string& name,
     if(!RegisterWaitForSingleObject(&pp->waithnd, pp->hnd, activatorWaitCallback, pp, INFINITE,
                                     WT_EXECUTEDEFAULT | WT_EXECUTEONLYONCE))
     {
-        throw IceUtilInternal::lastErrorToString();
+        TerminateProcess(pp->hnd, 0);
+
+        string message = IceUtilInternal::lastErrorToString();
+
+        Ice::Warning out(_traceLevels->logger);
+        out << "server activation failed for `" << name << "':\ncouldn't register wait callback\n" << message;
+
+        throw runtime_error(message);
     }
 
     //
@@ -641,25 +669,47 @@ Activator::activate(const string& name,
     }
 
     vector<gid_t> groups;
+#ifdef _AIX
+    char* grouplist = getgrset(pw->pw_name);
+    if(grouplist == 0)
+    {
+        throw SyscallException(__FILE__, __LINE__, getSystemErrno());
+    }
+    vector<string> grps;
+    if(IceUtilInternal::splitString(grouplist, ",", grps))
+    {
+        for(vector<string>::const_iterator p = grps.begin(); p != grps.end(); ++p)
+        {
+            gid_t group;
+            istringstream is(*p);
+            if(is >> group)
+            {
+                groups.push_back(group);
+            }
+        }
+    }
+    free(grouplist);
+#else
     groups.resize(20);
     int ngroups = static_cast<int>(groups.size());
-#if defined(__APPLE__)
+#   if defined(__APPLE__)
     if(getgrouplist(pw->pw_name, static_cast<int>(gid), reinterpret_cast<int*>(&groups[0]), &ngroups) < 0)
-#else
+#   else
     if(getgrouplist(pw->pw_name, gid, &groups[0], &ngroups) < 0)
-#endif
+#   endif
     {
         groups.resize(static_cast<size_t>(ngroups));
-#if defined(__APPLE__)
+#   if defined(__APPLE__)
         getgrouplist(pw->pw_name, static_cast<int>(gid), reinterpret_cast<int*>(&groups[0]), &ngroups);
-#else
+#   else
         getgrouplist(pw->pw_name, gid, &groups[0], &ngroups);
-#endif
+#   endif
     }
     else
     {
        groups.resize(static_cast<size_t>(ngroups));
     }
+#endif
 
     if(groups.size() > NGROUPS_MAX)
     {
@@ -840,6 +890,9 @@ Activator::activate(const string& name,
         //
         if(!message.empty())
         {
+            Ice::Warning out(_traceLevels->logger);
+            out << "server activation failed for `" << name << "':\n" << message;
+
             close(fds[0]);
             close(errorFds[0]);
             waitPid(pid);

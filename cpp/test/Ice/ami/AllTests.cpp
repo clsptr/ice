@@ -958,7 +958,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value(value);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -995,7 +995,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1031,7 +1031,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value(id);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1067,7 +1067,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value(ids);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1105,7 +1105,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                     {
                         promise.set_value(connection);
                     },
-                    [&](const exception_ptr& ex)
+                    [&](exception_ptr ex)
                     {
                         promise.set_exception(ex);
                     });
@@ -1132,7 +1132,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1162,17 +1162,55 @@ allTests(Test::TestHelper* helper, bool collocated)
             test(promise.get_future().get() == 15);
         }
         {
+            // Count copies made
+            class CopyCounter
+            {
+            public:
+                CopyCounter(int& count) : _count(count)
+                {
+                }
+
+                CopyCounter(const CopyCounter& o) : _count(o._count)
+                {
+                    _count++;
+                }
+
+                CopyCounter(CopyCounter&&) = default;
+
+            private:
+                int& _count;
+            };
+
+            int responseCopyCount = 0;
+            int errorCopyCount = 0;
+            int sentCopyCount = 0;
+            CopyCounter responseCopyCounter(responseCopyCount);
+            CopyCounter errorCopyCounter(errorCopyCount);
+            CopyCounter sentCopyCounter(sentCopyCount);
+
             promise<int> promise;
             p->opWithResultAsync(
-                [&](int result)
+                [&promise, responseCopyCounter](int result)
                 {
                     promise.set_value(result);
                 },
-                [&](const exception_ptr& ex)
+                [&promise, errorCopyCounter](exception_ptr ex)
                 {
                     promise.set_exception(ex);
+                },
+                [sentCopyCounter](bool)
+                {
+                    // no-op
                 });
             test(promise.get_future().get() == 15);
+#if ICE_CPLUSPLUS >= 201402L
+            // Move capture with C++14 saves one copy (see Proxy.h and OutgoingAsync.h)
+            test(responseCopyCount == 1);
+#else
+            test(responseCopyCount == 2);
+#endif
+            test(errorCopyCount == 1);
+            test(sentCopyCount == 1);
         }
         {
             promise<int> promise;
@@ -1192,7 +1230,7 @@ allTests(Test::TestHelper* helper, bool collocated)
             promise<void> promise;
             p->opWithUEAsync(
                 nullptr,
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1213,7 +1251,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1231,7 +1269,7 @@ allTests(Test::TestHelper* helper, bool collocated)
             promise<void> promise;
             p->opWithUEAsync(
                 nullptr,
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 },
@@ -1254,7 +1292,7 @@ allTests(Test::TestHelper* helper, bool collocated)
             promise<void> promise;
             p->opWithResultAndUEAsync(
                 nullptr,
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1278,7 +1316,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1299,7 +1337,7 @@ allTests(Test::TestHelper* helper, bool collocated)
             promise<void> promise;
             p->opWithResultAndUEAsync(
                 nullptr,
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 },
@@ -1398,7 +1436,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1421,7 +1459,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                     {
                         promise.set_value(value);
                     },
-                    [&](const exception_ptr& ex)
+                    [&](exception_ptr ex)
                     {
                         promise.set_exception(ex);
                     });
@@ -1452,7 +1490,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                     {
                         promise.set_value();
                     },
-                    [&](const exception_ptr& ex)
+                    [&](exception_ptr ex)
                     {
                         promise.set_exception(ex);
                     });
@@ -1524,7 +1562,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value(value);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1545,7 +1583,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1567,7 +1605,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1591,7 +1629,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value(value);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1612,7 +1650,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1634,7 +1672,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     promise.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 });
@@ -1662,7 +1700,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     response.set_value(value);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     response.set_exception(ex);
                 },
@@ -1684,7 +1722,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     response.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     response.set_exception(ex);
                 },
@@ -1706,7 +1744,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     response.set_value(value);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     response.set_exception(ex);
                 },
@@ -1728,7 +1766,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     response.set_value(value);
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     response.set_exception(ex);
                 },
@@ -1750,7 +1788,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 {
                     response.set_value();
                 },
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     response.set_exception(ex);
                 },
@@ -1776,7 +1814,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 p->opWithPayloadAsync(
                     seq,
                     [](){},
-                    [s](const exception_ptr& ex)
+                    [s](exception_ptr ex)
                     {
                         s->set_exception(ex);
                     },
@@ -1815,7 +1853,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                         promise.set_value();
                         thrower(throwEx[i]);
                     },
-                    [&](const exception_ptr&)
+                    [&](exception_ptr)
                     {
                         test(false);
                     });
@@ -1863,7 +1901,7 @@ allTests(Test::TestHelper* helper, bool collocated)
             auto id = this_thread::get_id();
             promise<void> promise;
             b1->ice_flushBatchRequestsAsync(
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 },
@@ -1887,7 +1925,7 @@ allTests(Test::TestHelper* helper, bool collocated)
             auto id = this_thread::get_id();
             promise<void> promise;
             b1->ice_flushBatchRequestsAsync(
-                [&](const exception_ptr& ex)
+                [&](exception_ptr ex)
                 {
                     promise.set_exception(ex);
                 },
@@ -1919,7 +1957,7 @@ allTests(Test::TestHelper* helper, bool collocated)
 
                 b1->ice_getConnection()->flushBatchRequestsAsync(
                     Ice::CompressBatch::BasedOnProxy,
-                    [&](const exception_ptr& ex)
+                    [&](exception_ptr ex)
                     {
                         promise.set_exception(ex);
                     },
@@ -1939,7 +1977,7 @@ allTests(Test::TestHelper* helper, bool collocated)
                 promise<void> promise;
                 p->ice_getConnection()->flushBatchRequestsAsync(
                     Ice::CompressBatch::BasedOnProxy,
-                    [&](const exception_ptr& ex)
+                    [&](exception_ptr ex)
                     {
                         promise.set_exception(ex);
                     },
@@ -2411,12 +2449,12 @@ allTests(Test::TestHelper* helper, bool collocated)
 
         promise<void> promise;
         q->opAsync(1,
-            [&promise](int i, int j)
+                [&promise](int i, int j)
                 {
                     test(i == j);
                     promise.set_value();
                 },
-                [](const exception_ptr& ex)
+                [](exception_ptr ex)
                 {
                     try
                     {

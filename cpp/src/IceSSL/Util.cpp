@@ -20,6 +20,12 @@
 
 #include <fstream>
 
+#ifdef __IBMCPP__
+// Work-around for xlC visibility bug
+// See "ifstream::tellg visibility error" thread on IBM xlC forum
+extern template class std::fpos<char*>;
+#endif
+
 using namespace std;
 using namespace Ice;
 using namespace IceInternal;
@@ -134,7 +140,7 @@ IceSSL::readFile(const string& file, vector<char>& buffer)
 bool
 IceSSL::checkPath(const string& path, const string& defaultDir, bool dir, string& resolved)
 {
-#if defined(ICE_USE_SECURE_TRANSPORT_IOS)
+#if defined(ICE_USE_SECURE_TRANSPORT_IOS) || defined(ICE_SWIFT)
     CFBundleRef bundle = CFBundleGetMainBundle();
     if(bundle)
     {
